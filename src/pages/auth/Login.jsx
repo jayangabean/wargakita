@@ -67,7 +67,7 @@ const Login = () => {
               <div 
                 className="w-full h-full bg-cover bg-center" 
                 style={{
-                  backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAcuyuEX2imEP_vAeua6W10IpKpFIZdguQpPYEURAK1lWn0rGAL0Qt-2UftB6-6zqt6pSugbKL9aqIbA1U8uzzcvgaU2YLF0W4C5cdDRc9mOWhkpy54rulQ4wZNw96C4i1t6J3-SW6i-syErilfpn5uqxYhrZgnCmij5YrSllWGf-aLJNY8kttlFuCJMdZaZAZr8cbOkTUTU60kqAvBQKPnvIgSRTHNaTalTO4uEl31xPsaX_e9PSTx')"
+                  backgroundImage: "url('https://img.pikbest.com/wp/202347/above-ground-residential-cartoon-concept-3d-renderings_9743598.jpg!w700wp')"
                 }}
               ></div>
               <div className="absolute inset-0 bg-gradient-to-t from-surface-container-low via-surface-container-low/80 to-transparent"></div>
