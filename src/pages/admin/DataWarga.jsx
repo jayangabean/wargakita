@@ -412,9 +412,9 @@ const DataWargaAdmin = () => {
                   onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
                   className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary appearance-none"
                 >
-                  <option value="Aktif">✅ Aktif</option>
-                  <option value="Pindah">🔄 Pindah</option>
-                  <option value="Nonaktif">❌ Nonaktif</option>
+                  <option value="Aktif">Aktif</option>
+                  <option value="Pindah">Pindah</option>
+                  <option value="Nonaktif">Nonaktif</option>
                 </select>
                 <p className="text-xs text-on-surface-variant mt-1">
                   Ubah status penghuni sesuai kondisi terbaru
