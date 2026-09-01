@@ -3,18 +3,23 @@ import Layout from '../../components/layout/Layout';
 import { useAuth } from '../../hooks/useAuth';
 import { getAllPenghuni, getAllKosForFilter } from '../../api/admin';
 import { getStatusOptions } from '../../api/penghuni';
+import { supabase } from '../../config/supabase';
 import toast from 'react-hot-toast';
 import {
   MagnifyingGlassIcon,
   PencilSquareIcon,
   TrashIcon,
+  XMarkIcon,
   UserCircleIcon,
   HomeIcon,
   IdentificationIcon,
   DevicePhoneMobileIcon,
   EnvelopeIcon,
   FunnelIcon,
-  BuildingOfficeIcon
+  BuildingOfficeIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
 
 const DataWargaAdmin = () => {
@@ -25,6 +30,17 @@ const DataWargaAdmin = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Semua');
   const [kosFilter, setKosFilter] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingData, setEditingData] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    nama_lengkap: '',
+    nik: '',
+    no_hp: '',
+    email: '',
+    nomor_kamar: '',
+    status: 'Aktif'
+  });
 
   const statusOptions = getStatusOptions();
 
@@ -32,7 +48,6 @@ const DataWargaAdmin = () => {
   const loadData = async () => {
     setLoading(true);
     
-    // Load semua penghuni
     const penghuniResult = await getAllPenghuni({
       search,
       status: statusFilter,
@@ -42,7 +57,6 @@ const DataWargaAdmin = () => {
       setPenghuni(penghuniResult.data || []);
     }
 
-    // Load daftar kos untuk filter
     const kosResult = await getAllKosForFilter();
     if (!kosResult.error) {
       setKosList(kosResult.data || []);
@@ -55,11 +69,83 @@ const DataWargaAdmin = () => {
     loadData();
   }, [search, statusFilter, kosFilter]);
 
-  // Handle delete (Admin bisa hapus semua)
+  // ============================================
+  // FUNGSI EDIT
+  // ============================================
+  const handleEditClick = (item) => {
+    setEditingData(item);
+    setEditFormData({
+      nama_lengkap: item.nama_lengkap,
+      nik: item.nik,
+      no_hp: item.no_hp,
+      email: item.email || '',
+      nomor_kamar: item.nomor_kamar,
+      status: item.status
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    // Validasi
+    if (!editFormData.nama_lengkap || !editFormData.nik || !editFormData.no_hp) {
+      toast.error('Field wajib diisi!');
+      setSubmitting(false);
+      return;
+    }
+
+    if (editFormData.nik.length !== 16 || !/^\d+$/.test(editFormData.nik)) {
+      toast.error('NIK harus 16 digit angka!');
+      setSubmitting(false);
+      return;
+    }
+
+    // Update data penghuni
+    const { error } = await supabase
+      .from('penghuni')
+      .update({
+        nama_lengkap: editFormData.nama_lengkap,
+        nik: editFormData.nik,
+        no_hp: editFormData.no_hp,
+        email: editFormData.email,
+        nomor_kamar: editFormData.nomor_kamar,
+        status: editFormData.status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', editingData.id);
+
+    if (!error) {
+      toast.success(`Status penghuni berhasil diubah menjadi ${editFormData.status}`);
+      setShowEditModal(false);
+      resetEditForm();
+      loadData();
+    } else {
+      toast.error('Gagal update: ' + error.message);
+    }
+
+    setSubmitting(false);
+  };
+
+  const resetEditForm = () => {
+    setEditFormData({
+      nama_lengkap: '',
+      nik: '',
+      no_hp: '',
+      email: '',
+      nomor_kamar: '',
+      status: 'Aktif'
+    });
+    setEditingData(null);
+  };
+
+  // ============================================
+  // FUNGSI DELETE
+  // ============================================
   const handleDelete = async (id, nama) => {
     if (!confirm(`Yakin ingin menghapus ${nama}?`)) return;
     
-    // Admin delete langsung pakai supabase
     const { error } = await supabase
       .from('penghuni')
       .delete()
@@ -73,13 +159,17 @@ const DataWargaAdmin = () => {
     }
   };
 
+  // ============================================
+  // BADGE STATUS
+  // ============================================
   const getStatusBadge = (status) => {
     const map = {
-      'Aktif': { bg: 'bg-secondary/10', text: 'text-secondary' },
-      'Pindah': { bg: 'bg-warm-yellow/10', text: 'text-warm-yellow' },
-      'Nonaktif': { bg: 'bg-error/10', text: 'text-error' }
+      'Aktif': { bg: 'bg-secondary/10 text-secondary', icon: CheckCircleIcon },
+      'Pindah': { bg: 'bg-warm-yellow/10 text-warm-yellow', icon: ClockIcon },
+      'Nonaktif': { bg: 'bg-error/10 text-error', icon: ExclamationCircleIcon }
     };
-    return map[status] || { bg: 'bg-gray-100', text: 'text-gray-600' };
+    const defaultMap = { bg: 'bg-gray-100 text-gray-600', icon: UserCircleIcon };
+    return map[status] || defaultMap;
   };
 
   return (
@@ -172,6 +262,7 @@ const DataWargaAdmin = () => {
                 <tbody>
                   {penghuni.map((item, index) => {
                     const badge = getStatusBadge(item.status);
+                    const StatusIcon = badge.icon;
                     return (
                       <tr key={item.id} className="border-t border-outline-variant hover:bg-surface-container-low transition-colors">
                         <td className="px-4 py-3 text-on-surface-variant">{index + 1}</td>
@@ -188,7 +279,8 @@ const DataWargaAdmin = () => {
                           <p className="text-xs text-on-surface-variant">{item.email || '-'}</p>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${badge.bg}`}>
+                            <StatusIcon className="w-3 h-3" />
                             {item.status}
                           </span>
                         </td>
@@ -198,7 +290,7 @@ const DataWargaAdmin = () => {
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-2">
                             <button
-                              onClick={() => {}}
+                              onClick={() => handleEditClick(item)}
                               className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"
                               title="Edit"
                             >
@@ -225,6 +317,140 @@ const DataWargaAdmin = () => {
           </div>
         </div>
       </div>
+
+      {/* ============================================
+      MODAL EDIT PENGHUNI
+      ============================================ */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-outline-variant flex justify-between items-center sticky top-0 bg-surface">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <PencilSquareIcon className="w-6 h-6 text-primary" />
+                Edit Penghuni
+              </h3>
+              <button
+                onClick={() => { setShowEditModal(false); resetEditForm(); }}
+                className="p-1 hover:bg-surface-container rounded-lg transition-colors"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-on-surface mb-1">
+                  Nama Lengkap <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.nama_lengkap}
+                  onChange={(e) => setEditFormData({ ...editFormData, nama_lengkap: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-on-surface mb-1">
+                  NIK <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.nik}
+                  onChange={(e) => setEditFormData({ ...editFormData, nik: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
+                  maxLength="16"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-on-surface mb-1">
+                  No HP <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.no_hp}
+                  onChange={(e) => setEditFormData({ ...editFormData, no_hp: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-on-surface mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-on-surface mb-1">
+                  Nomor Kamar <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.nomor_kamar}
+                  onChange={(e) => setEditFormData({ ...editFormData, nomor_kamar: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-on-surface mb-1">
+                  Status <span className="text-error">*</span>
+                </label>
+                <select
+                  value={editFormData.status}
+                  onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary appearance-none"
+                >
+                  <option value="Aktif">✅ Aktif</option>
+                  <option value="Pindah">🔄 Pindah</option>
+                  <option value="Nonaktif">❌ Nonaktif</option>
+                </select>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Ubah status penghuni sesuai kondisi terbaru
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditModal(false); resetEditForm(); }}
+                  className="flex-1 px-4 py-2 border border-outline-variant rounded-xl hover:bg-surface-container transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      <PencilSquareIcon className="w-5 h-5" />
+                      Update
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
