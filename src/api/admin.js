@@ -827,6 +827,110 @@ export const createPemilikKosWithAccount = async (data) => {
 };
 
 // ============================================
+// UPDATE PEMILIK KOS (FIXED)
+// ============================================
+export const updatePemilikKos = async (id, data) => {
+  try {
+    console.log('📝 Updating pemilik kos:', id);
+    console.log('📝 Data:', data);
+
+    // 1. Cek duplikat NIK (kalau diisi)
+    if (data.nik && data.nik.trim() !== '') {
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('id, nama_lengkap, nik')
+        .eq('nik', data.nik)
+        .neq('id', id)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('❌ Check NIK error:', checkError);
+      }
+
+      if (existingUser) {
+        return { 
+          data: null, 
+          error: `NIK ${data.nik} sudah digunakan oleh ${existingUser.nama_lengkap || 'pemilik lain'}` 
+        };
+      }
+    }
+
+    // 2. Update profile (tanpa email)
+    const { data: updatedData, error } = await supabase
+      .from('profiles')
+      .update({
+        nama_lengkap: data.nama_lengkap,
+        nik: data.nik || '',
+        no_hp: data.no_hp || '',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Update error:', error);
+      // Kalau error karena duplicate key, kasih pesan yang lebih jelas
+      if (error.message.includes('duplicate key')) {
+        return { data: null, error: 'NIK sudah digunakan oleh pemilik lain' };
+      }
+      return { data: null, error: error.message };
+    }
+
+    console.log('✅ Update success:', updatedData);
+    return { data: updatedData, error: null };
+  } catch (error) {
+    console.error('❌ Error updatePemilikKos:', error);
+    return { data: null, error: error.message };
+  }
+};
+
+// ============================================
+// DELETE PEMILIK KOS (FIXED)
+// ============================================
+export const deletePemilikKos = async (id) => {
+  try {
+    // 1. Cek apakah ada kos yang masih terikat
+    const { data: kosData, error: kosError } = await supabase
+      .from('kos')
+      .select('id, nama_kos')
+      .eq('pemilik_id', id);
+
+    if (kosError) throw kosError;
+
+    if (kosData && kosData.length > 0) {
+      const kosNames = kosData.map(k => k.nama_kos).join(', ');
+      return { 
+        error: `Pemilik masih memiliki ${kosData.length} kos (${kosNames}). Hapus kos terlebih dahulu.` 
+      };
+    }
+
+    // 2. Hapus profile
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', id);
+
+    if (profileError) throw profileError;
+
+    // 3. Hapus user dari auth (pakai supabaseAdmin)
+    try {
+      const { error: userError } = await supabaseAdmin.auth.admin.deleteUser(id);
+      if (userError) {
+        console.warn('⚠️ Gagal hapus user dari auth:', userError);
+      }
+    } catch (userError) {
+      console.warn('⚠️ Gagal hapus user dari auth:', userError);
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error('❌ Error deletePemilikKos:', error);
+    return { error: error.message };
+  }
+};
+
+// ============================================
 // BUKTI PEMBAYARAN
 // ============================================
 export const getBuktiPembayaranUrl = async (filePath) => {
