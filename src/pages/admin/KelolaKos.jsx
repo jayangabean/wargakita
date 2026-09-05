@@ -7,7 +7,8 @@ import {
   createKosAdmin,
   updateKosAdmin,
   deleteKosAdmin,
-  createPemilikKosWithAccount  // ⭐️ IMPORT
+  createPemilikKosWithAccount,
+  deletePemilikKos
 } from '../../api/admin';
 import toast from 'react-hot-toast';
 import {
@@ -29,18 +30,21 @@ import {
   ClipboardDocumentIcon,
   EyeIcon,
   EyeSlashIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 
 const KelolaKosAdmin = () => {
   const { profile } = useAuth();
+  const [activeTab, setActiveTab] = useState('kos');
   const [kosList, setKosList] = useState([]);
   const [pemilikList, setPemilikList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [showOwnerModal, setShowOwnerModal] = useState(false); // ⭐️ MODAL PEMILIK
-  const [showSuccessModal, setShowSuccessModal] = useState(false); // ⭐️ MODAL SUKSES
+  const [showOwnerModal, setShowOwnerModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [editingData, setEditingData] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -60,7 +64,8 @@ const KelolaKosAdmin = () => {
     nama_lengkap: '',
     email: '',
     nik: '',
-    no_hp: ''
+    no_hp: '',
+    status: 'Aktif'
   });
 
   // Load data
@@ -100,11 +105,14 @@ const KelolaKosAdmin = () => {
       nama_lengkap: '',
       email: '',
       nik: '',
-      no_hp: ''
+      no_hp: '',
+      status: 'Aktif'
     });
   };
 
-  // Handle edit kos
+  // ============================================
+  // CRUD KOS
+  // ============================================
   const handleEdit = (kos) => {
     setEditingData(kos);
     setFormData({
@@ -116,8 +124,7 @@ const KelolaKosAdmin = () => {
     setShowModal(true);
   };
 
-  // Handle delete kos
-  const handleDelete = async (id, nama) => {
+  const handleDeleteKos = async (id, nama) => {
     if (!confirm(`Yakin ingin menghapus kos "${nama}"?`)) return;
     const { error } = await deleteKosAdmin(id);
     if (!error) {
@@ -128,8 +135,7 @@ const KelolaKosAdmin = () => {
     }
   };
 
-  // Handle submit kos
-  const handleSubmit = async (e) => {
+  const handleSubmitKos = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
@@ -163,12 +169,13 @@ const KelolaKosAdmin = () => {
     setSubmitting(false);
   };
 
-  // ⭐️ HANDLE SUBMIT PEMILIK KOS
+  // ============================================
+  // CRUD PEMILIK KOS
+  // ============================================
   const handleOwnerSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
-    // Validasi
     if (!ownerFormData.nama_lengkap || !ownerFormData.email) {
       toast.error('Nama dan Email wajib diisi!');
       setSubmitting(false);
@@ -186,7 +193,6 @@ const KelolaKosAdmin = () => {
     if (result.error) {
       toast.error('Gagal membuat akun: ' + result.error);
     } else {
-      // Tampilkan modal sukses
       setNewAccount({
         nama: ownerFormData.nama_lengkap,
         email: ownerFormData.email,
@@ -201,6 +207,18 @@ const KelolaKosAdmin = () => {
     }
 
     setSubmitting(false);
+  };
+
+  // ⭐️ DELETE PEMILIK KOS (EDIT DIHAPUS)
+  const handleDeleteOwner = async (id, nama) => {
+    if (!confirm(`Yakin ingin menghapus pemilik kos "${nama}"?`)) return;
+    const { error } = await deletePemilikKos(id);
+    if (!error) {
+      toast.success('Pemilik kos berhasil dihapus');
+      loadData();
+    } else {
+      toast.error('Gagal menghapus: ' + error);
+    }
   };
 
   // Copy ke clipboard
@@ -225,6 +243,16 @@ const KelolaKosAdmin = () => {
     });
   };
 
+  const getStatusBadge = (status) => {
+    const map = {
+      'Aktif': { bg: 'bg-secondary/10 text-secondary', icon: CheckCircleIcon },
+      'Nonaktif': { bg: 'bg-error/10 text-error', icon: ExclamationCircleIcon },
+      'Pending': { bg: 'bg-warm-yellow/10 text-warm-yellow', icon: ClockIcon }
+    };
+    const defaultMap = { bg: 'bg-gray-100 text-gray-600', icon: UserCircleIcon };
+    return map[status] || defaultMap;
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -232,28 +260,60 @@ const KelolaKosAdmin = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-on-surface">Kelola Kos</h1>
-            <p className="text-on-surface-variant">Kelola semua properti kos</p>
-            <p className="text-xs text-on-surface-variant mt-1">
-              Total: <span className="font-semibold text-primary">{kosList.length}</span> kos
-            </p>
+            <p className="text-on-surface-variant">Kelola semua properti kos dan pemilik</p>
           </div>
           <div className="flex gap-2">
-            {/* ⭐️ TOMBOL BUAT PEMILIK KOS */}
-            <button
-              onClick={() => { resetOwnerForm(); setShowOwnerModal(true); }}
-              className="px-4 py-2 bg-secondary text-white rounded-xl text-sm font-medium hover:bg-secondary/90 transition-colors flex items-center gap-2"
-            >
-              <UserPlusIcon className="w-5 h-5" />
-              Buat Pemilik Kos
-            </button>
-            <button
-              onClick={() => { resetForm(); setShowModal(true); }}
-              className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-sm shadow-primary/20"
-            >
-              <PlusCircleIcon className="w-5 h-5" />
-              Tambah Kos
-            </button>
+            {activeTab === 'pemilik' && (
+              <button
+                onClick={() => { resetOwnerForm(); setShowOwnerModal(true); }}
+                className="px-4 py-2 bg-secondary text-white rounded-xl text-sm font-medium hover:bg-secondary/90 transition-colors flex items-center gap-2"
+              >
+                <UserPlusIcon className="w-5 h-5" />
+                Buat Pemilik Kos
+              </button>
+            )}
+            {activeTab === 'kos' && (
+              <button
+                onClick={() => { resetForm(); setShowModal(true); }}
+                className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-sm shadow-primary/20"
+              >
+                <PlusCircleIcon className="w-5 h-5" />
+                Tambah Kos
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-outline-variant">
+          <button
+            onClick={() => setActiveTab('kos')}
+            className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'kos'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <BuildingOfficeIcon className="w-4 h-4 inline mr-2" />
+            Data Kos
+            <span className="ml-2 text-xs bg-surface-container-low px-2 py-0.5 rounded-full">
+              {kosList.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('pemilik')}
+            className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'pemilik'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <UserCircleIcon className="w-4 h-4 inline mr-2" />
+            Data Pemilik Kos
+            <span className="ml-2 text-xs bg-surface-container-low px-2 py-0.5 rounded-full">
+              {pemilikList.length}
+            </span>
+          </button>
         </div>
 
         {/* Search */}
@@ -263,86 +323,166 @@ const KelolaKosAdmin = () => {
           </div>
           <input
             type="text"
-            placeholder="Cari nama kos atau alamat..."
+            placeholder={activeTab === 'kos' ? "Cari nama kos atau alamat..." : "Cari nama atau email pemilik..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
           />
         </div>
 
-        {/* Grid Kos */}
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto"></div>
-            <p className="text-on-surface-variant mt-2">Memuat data...</p>
-          </div>
-        ) : kosList.length === 0 ? (
-          <div className="p-8 text-center bg-surface rounded-xl border border-outline-variant">
-            <BuildingOfficeIcon className="w-12 h-12 text-on-surface-variant/30 mx-auto mb-3" />
-            <p className="text-on-surface-variant">Belum ada kos. Klik "Tambah Kos" untuk menambahkan.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {kosList.map((kos) => (
-              <div key={kos.id} className="bg-surface rounded-xl border border-outline-variant p-6 hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                      <HomeIcon className="w-5 h-5" />
+        {/* ============================================
+        TAB DATA KOS
+        ============================================ */}
+        {activeTab === 'kos' && (
+          <>
+            {loading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto"></div>
+                <p className="text-on-surface-variant mt-2">Memuat data...</p>
+              </div>
+            ) : kosList.length === 0 ? (
+              <div className="p-8 text-center bg-surface rounded-xl border border-outline-variant">
+                <BuildingOfficeIcon className="w-12 h-12 text-on-surface-variant/30 mx-auto mb-3" />
+                <p className="text-on-surface-variant">Belum ada kos. Klik "Tambah Kos" untuk menambahkan.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {kosList.map((kos) => (
+                  <div key={kos.id} className="bg-surface rounded-xl border border-outline-variant p-6 hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                          <HomeIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-on-surface">{kos.nama_kos}</h3>
+                          <p className="text-xs text-on-surface-variant flex items-center gap-1">
+                            <MapPinIcon className="w-3 h-3" /> {kos.alamat}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-1 bg-secondary/10 text-secondary text-xs rounded-full">
+                        Aktif
+                      </span>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-on-surface">{kos.nama_kos}</h3>
+
+                    <div className="flex gap-4 mt-3 text-sm">
+                      <span className="flex items-center gap-1">
+                        <BuildingOfficeIcon className="w-4 h-4 text-on-surface-variant" />
+                        Total: <strong>{kos.jumlah_kamar}</strong>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <UserGroupIcon className="w-4 h-4 text-on-surface-variant" />
+                        Terisi: <strong className="text-primary">{kos.terisi || 0}</strong>
+                      </span>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-outline-variant">
                       <p className="text-xs text-on-surface-variant flex items-center gap-1">
-                        <MapPinIcon className="w-3 h-3" /> {kos.alamat}
+                        <UserCircleIcon className="w-3 h-3" />
+                        Pemilik: <span className="font-medium text-on-surface">{kos.pemilik_nama}</span>
+                      </p>
+                      <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
+                        <EnvelopeIcon className="w-3 h-3" />
+                        {kos.pemilik_email}
                       </p>
                     </div>
+
+                    <div className="flex gap-2 mt-4 pt-3 border-t border-outline-variant">
+                      <button
+                        onClick={() => handleEdit(kos)}
+                        className="flex-1 px-3 py-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors flex items-center justify-center gap-1 text-sm"
+                      >
+                        <PencilSquareIcon className="w-4 h-4" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteKos(kos.id, kos.nama_kos)}
+                        className="flex-1 px-3 py-1.5 text-error hover:bg-error/10 rounded-lg transition-colors flex items-center justify-center gap-1 text-sm"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                        Hapus
+                      </button>
+                    </div>
                   </div>
-                  <span className="px-2 py-1 bg-secondary/10 text-secondary text-xs rounded-full">
-                    Aktif
-                  </span>
-                </div>
-
-                <div className="flex gap-4 mt-3 text-sm">
-                  <span className="flex items-center gap-1">
-                    <BuildingOfficeIcon className="w-4 h-4 text-on-surface-variant" />
-                    Total: <strong>{kos.jumlah_kamar}</strong>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <UserGroupIcon className="w-4 h-4 text-on-surface-variant" />
-                    Terisi: <strong className="text-primary">{kos.terisi || 0}</strong>
-                  </span>
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-outline-variant">
-                  <p className="text-xs text-on-surface-variant flex items-center gap-1">
-                    <UserCircleIcon className="w-3 h-3" />
-                    Pemilik: <span className="font-medium text-on-surface">{kos.pemilik_nama}</span>
-                  </p>
-                  <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
-                    <EnvelopeIcon className="w-3 h-3" />
-                    {kos.pemilik_email}
-                  </p>
-                </div>
-
-                <div className="flex gap-2 mt-4 pt-3 border-t border-outline-variant">
-                  <button
-                    onClick={() => handleEdit(kos)}
-                    className="flex-1 px-3 py-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors flex items-center justify-center gap-1 text-sm"
-                  >
-                    <PencilSquareIcon className="w-4 h-4" />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(kos.id, kos.nama_kos)}
-                    className="flex-1 px-3 py-1.5 text-error hover:bg-error/10 rounded-lg transition-colors flex items-center justify-center gap-1 text-sm"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                    Hapus
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
+        )}
+
+        {/* ============================================
+        TAB DATA PEMILIK KOS (EDIT DIHAPUS)
+        ============================================ */}
+        {activeTab === 'pemilik' && (
+          <>
+            {loading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto"></div>
+                <p className="text-on-surface-variant mt-2">Memuat data...</p>
+              </div>
+            ) : pemilikList.length === 0 ? (
+              <div className="p-8 text-center bg-surface rounded-xl border border-outline-variant">
+                <UserCircleIcon className="w-12 h-12 text-on-surface-variant/30 mx-auto mb-3" />
+                <p className="text-on-surface-variant">Belum ada pemilik kos. Klik "Buat Pemilik Kos" untuk menambahkan.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pemilikList.map((pemilik) => {
+                  const badge = getStatusBadge(pemilik.status || 'Aktif');
+                  const StatusIcon = badge.icon;
+                  return (
+                    <div key={pemilik.id} className="bg-surface rounded-xl border border-outline-variant p-6 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary">
+                            <UserCircleIcon className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-on-surface">{pemilik.nama_lengkap}</h3>
+                            <p className="text-xs text-on-surface-variant flex items-center gap-1">
+                              <EnvelopeIcon className="w-3 h-3" /> {pemilik.email}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${badge.bg}`}>
+                          <StatusIcon className="w-3 h-3" />
+                          {pemilik.status || 'Aktif'}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t border-outline-variant space-y-1">
+                        <p className="text-xs text-on-surface-variant flex items-center gap-1">
+                          <IdentificationIcon className="w-3 h-3" />
+                          NIK: <span className="font-medium text-on-surface">{pemilik.nik || '-'}</span>
+                        </p>
+                        <p className="text-xs text-on-surface-variant flex items-center gap-1">
+                          <DevicePhoneMobileIcon className="w-3 h-3" />
+                          HP: <span className="font-medium text-on-surface">{pemilik.no_hp || '-'}</span>
+                        </p>
+                        <p className="text-xs text-on-surface-variant">
+                          Total Kos: <span className="font-medium text-primary">
+                            {kosList.filter(k => k.pemilik_id === pemilik.id).length}
+                          </span>
+                        </p>
+                      </div>
+
+                      {/* ⭐️ HANYA TOMBOL HAPUS (EDIT DIHAPUS) */}
+                      <div className="flex gap-2 mt-4 pt-3 border-t border-outline-variant">
+                        <button
+                          onClick={() => handleDeleteOwner(pemilik.id, pemilik.nama_lengkap)}
+                          className="w-full px-3 py-1.5 text-error hover:bg-error/10 rounded-lg transition-colors flex items-center justify-center gap-1 text-sm"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                          Hapus
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -363,7 +503,7 @@ const KelolaKosAdmin = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmitKos} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-on-surface mb-1">
                   Nama Kos <span className="text-error">*</span>
@@ -423,9 +563,6 @@ const KelolaKosAdmin = () => {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-on-surface-variant mt-1">
-                  Kosongkan jika belum ada pemilik
-                </p>
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -459,7 +596,7 @@ const KelolaKosAdmin = () => {
         </div>
       )}
 
-      {/* ⭐️ MODAL BUAT PEMILIK KOS */}
+      {/* MODAL BUAT PEMILIK KOS */}
       {showOwnerModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-surface rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -482,9 +619,6 @@ const KelolaKosAdmin = () => {
                   <UserPlusIcon className="w-5 h-5" />
                   Akun akan dibuat otomatis!
                 </p>
-                <p className="text-xs text-on-surface-variant mt-1">
-                  Email dan password akan muncul setelah submit.
-                </p>
               </div>
 
               <div>
@@ -496,7 +630,6 @@ const KelolaKosAdmin = () => {
                   value={ownerFormData.nama_lengkap}
                   onChange={(e) => setOwnerFormData({ ...ownerFormData, nama_lengkap: e.target.value })}
                   className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
-                  placeholder="Masukkan nama lengkap"
                   required
                 />
               </div>
@@ -510,7 +643,6 @@ const KelolaKosAdmin = () => {
                   value={ownerFormData.email}
                   onChange={(e) => setOwnerFormData({ ...ownerFormData, email: e.target.value })}
                   className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
-                  placeholder="email@example.com"
                   required
                 />
               </div>
@@ -524,7 +656,6 @@ const KelolaKosAdmin = () => {
                   value={ownerFormData.nik}
                   onChange={(e) => setOwnerFormData({ ...ownerFormData, nik: e.target.value })}
                   className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
-                  placeholder="16 digit NIK"
                   maxLength="16"
                 />
               </div>
@@ -538,7 +669,6 @@ const KelolaKosAdmin = () => {
                   value={ownerFormData.no_hp}
                   onChange={(e) => setOwnerFormData({ ...ownerFormData, no_hp: e.target.value })}
                   className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary focus:border-primary"
-                  placeholder="08xxxxxxxxxx"
                 />
               </div>
 
@@ -573,7 +703,7 @@ const KelolaKosAdmin = () => {
         </div>
       )}
 
-      {/* ⭐️ MODAL SUKSES */}
+      {/* MODAL SUKSES */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
           <div className="bg-surface rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -582,9 +712,6 @@ const KelolaKosAdmin = () => {
                 <CheckCircleIcon className="w-8 h-8 text-secondary" />
               </div>
               <h3 className="text-xl font-bold text-on-surface">✅ Akun Pemilik Kos Berhasil Dibuat!</h3>
-              <p className="text-sm text-on-surface-variant mt-1">
-                Data akun untuk pemilik kos baru:
-              </p>
             </div>
 
             <div className="p-6 space-y-3">
@@ -594,50 +721,37 @@ const KelolaKosAdmin = () => {
                   <span className="text-sm font-medium text-on-surface">{newAccount.nama}</span>
                 </div>
                 <div className="flex justify-between items-center border-b border-outline-variant/50 pb-2">
-                  <span className="text-sm text-on-surface-variant flex items-center gap-1">
-                    <EnvelopeIcon className="w-4 h-4" /> Email
-                  </span>
+                  <span className="text-sm text-on-surface-variant">Email</span>
                   <span className="text-sm font-medium text-primary">{newAccount.email}</span>
                 </div>
-                <div className="flex justify-between items-center border-b border-outline-variant/50 pb-2">
-                  <span className="text-sm text-on-surface-variant flex items-center gap-1">
-                    <LockClosedIcon className="w-4 h-4" /> Password
-                  </span>
+                <div className="flex justify-between items-center pb-2">
+                  <span className="text-sm text-on-surface-variant">Password</span>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-mono bg-primary/10 px-3 py-1 rounded text-primary font-bold">
                       {showPassword ? newAccount.password : '••••••••'}
                     </span>
                     <button
                       onClick={() => setShowPassword(!showPassword)}
-                      className="p-1 text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-surface-container transition-colors"
+                      className="p-1 text-on-surface-variant hover:text-on-surface rounded-lg"
                     >
                       {showPassword ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
               </div>
-
-              <div className="bg-warm-yellow/5 rounded-xl border border-warm-yellow/20 p-3">
-                <p className="text-xs text-on-surface-variant text-center">
-                  🔗 Link Login: <span className="text-primary font-medium">{window.location.origin}/login</span>
-                </p>
-              </div>
             </div>
 
             <div className="p-4 border-t border-outline-variant flex flex-col sm:flex-row gap-2">
               <button
                 onClick={copyToClipboard}
-                className="flex-1 px-4 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                className="flex-1 px-4 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
               >
                 <ClipboardDocumentIcon className="w-5 h-5" />
                 Salin Semua
               </button>
               <button
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  toast.success('Data akun sudah disimpan');
-                }}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                onClick={() => { setShowSuccessModal(false); toast.success('Data akun sudah disimpan'); }}
+                className="flex-1 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
               >
                 <CheckCircleIcon className="w-5 h-5" />
                 Selesai
